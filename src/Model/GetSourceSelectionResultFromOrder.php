@@ -114,7 +114,7 @@ class GetSourceSelectionResultFromOrder
         );
         $itemProductTypes = $this->getProductTypesBySkus->execute($itemsSkus);
 
-        $selectionRequestItems = [];
+        $skuQtyMap = [];
         /** @var \Magento\Sales\Model\Order\Item $orderItem */
         foreach ($orderItems as $orderItem) {
             $itemSku = $this->getSkuFromOrderItem->execute($orderItem);
@@ -124,13 +124,33 @@ class GetSourceSelectionResultFromOrder
                 continue;
             }
 
-            $qty = $this->castQty($orderItem, $orderItem->getQtyOrdered());
+            // Skip parent bundle items
+            if (!$orderItem->getParentItemId() && $itemProductTypes[$itemSku] === 'bundle') {
+                continue;
+            }
 
+            $parentQty = 1;
+            if ($orderItem->getParentItem()) {
+                $parentQty = $orderItem->getParentItem()->getQtyOrdered();
+            }
+
+            $qty = $this->castQty($orderItem, $orderItem->getQtyOrdered()) * $parentQty;
+
+            if (!isset($skuQtyMap[$itemSku])) {
+                $skuQtyMap[$itemSku] = 0;
+            }
+
+            $skuQtyMap[$itemSku] += $qty;
+        }
+
+        $selectionRequestItems = [];
+        foreach ($skuQtyMap as $sku => $qty) {
             $selectionRequestItems[] = $this->itemRequestFactory->create([
-                'sku' => $itemSku,
+                'sku' => $sku,
                 'qty' => $qty,
             ]);
         }
+
         return $selectionRequestItems;
     }
 

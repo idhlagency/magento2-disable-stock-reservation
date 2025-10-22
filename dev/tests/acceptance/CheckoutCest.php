@@ -36,6 +36,44 @@ class CheckoutCest
     }
 
     /**
+     * Covers issue where bundle child option is selected twice
+     * and validates stock is deducted for both instances.
+     *
+     * @depends noInventoryIsReservedAndStockHasBeenDeducted
+     * @param Step\Acceptance\Magento $I
+     */
+    public function bundleWithDuplicateOptionsDeductsCorrectly(Step\Acceptance\Magento $I)
+    {
+        $productId = $I->createSimpleProduct('amp_bundle_child_duplicate', 10);
+
+        $bundleSku = $I->createBundleProductWithDuplicateOptions(
+            'amp_bundle_with_duplicates',
+            [
+                ['sku' => 'amp_bundle_child_duplicate', 'option_id' => 'option_1'],
+                ['sku' => 'amp_bundle_child_duplicate', 'option_id' => 'option_2']
+            ]
+        );
+
+        $cartId = $I->getGuestQuote();
+        $I->addBundleProductToQuote(
+            $cartId,
+            $bundleSku,
+            [
+                'option_1' => 'amp_bundle_child_duplicate',
+                'option_2' => 'amp_bundle_child_duplicate'
+            ]
+        );
+        $I->completeGuestCheckout($cartId);
+
+        $newQty = $I->grabFromDatabase(
+            'cataloginventory_stock_item',
+            'qty',
+            ['product_id' => $productId]
+        );
+        $I->assertEquals(8, $newQty, 'Expected 2 units to be deducted when same bundle option is selected twice');
+    }
+
+    /**
      * @depends noInventoryIsReservedAndStockHasBeenDeducted
      * @param Step\Acceptance\Magento $I
      */
