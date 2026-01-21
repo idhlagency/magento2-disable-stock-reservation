@@ -78,6 +78,92 @@ class Magento extends \AcceptanceTester
         return $productId;
     }
 
+    public function createBundleProductWithDuplicateOptions($sku, $childSkus)
+    {
+        $I = $this;
+
+        foreach ($childSkus as $child) {
+            $this->createSimpleProduct($child['sku'], 10);
+        }
+
+        $options = [];
+        foreach ($childSkus as $index => $child) {
+            $options[] = [
+                'option_id' => $child['option_id'],
+                'label' => 'Option ' . ($index + 1),
+                'position' => $index + 1,
+                'required' => true,
+                'type' => 'select',
+                'product_links' => [[
+                    'sku' => $child['sku'],
+                    'qty' => 1,
+                    'price' => 0,
+                    'can_change_quantity' => true
+                ]]
+            ];
+        }
+
+        $I->amBearerAuthenticated(self::ACCESS_TOKEN);
+        $I->haveHttpHeader('Content-Type', 'application/json');
+        $I->sendPOSTAndVerifyResponseCodeIs200('V1/products', json_encode([
+            'product' => [
+                'sku' => $sku,
+                'name' => 'Bundle Product With Duplicates',
+                'price' => 0,
+                'status' => 1,
+                'type_id' => 'bundle',
+                'visibility' => 4,
+                'extension_attributes' => [
+                    'bundle_product_options' => $options,
+                    'stock_item' => [
+                        'qty' => 100,
+                        'is_in_stock' => true
+                    ]
+                ],
+                'custom_attributes' => [
+                    [
+                        'attribute_code' => 'tax_class_id',
+                        'value' => 2
+                    ]
+                ]
+            ]
+        ]));
+
+        return $sku;
+    }
+
+    public function addBundleProductToQuote($cartId, $bundleSku, $selections)
+    {
+        $I = $this;
+
+        $bundleOptions = [];
+        foreach ($selections as $optionId => $sku) {
+            $bundleOptions[] = [
+                'option_id' => $optionId,
+                'sku' => $sku,
+                'qty' => 1
+            ];
+        }
+
+        $payload = [
+            'cartItem' => [
+                'quote_id' => $cartId,
+                'sku' => $bundleSku,
+                'qty' => 1,
+                'product_type' => 'bundle',
+                'product_option' => [
+                    'extension_attributes' => [
+                        'bundle_options' => $bundleOptions
+                    ]
+                ]
+            ]
+        ];
+
+        $I->amBearerAuthenticated(self::ACCESS_TOKEN);
+        $I->haveHttpHeader('Content-Type', 'application/json');
+        $I->sendPOSTAndVerifyResponseCodeIs200('V1/guest-carts/' . $cartId . '/items', json_encode($payload));
+    }
+
     /**
      * @return string|string[]
      */
